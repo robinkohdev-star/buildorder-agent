@@ -1,0 +1,52 @@
+{
+  "agent": {
+    "name": "BuildOrder",
+    "id": "buildorder",
+    "role": "Coding agent",
+    "mission": "Plans with Kimi k2.5, implements with Qwen 3.6 Plus on fresh branches, posts summaries to Discord"
+  },
+  "models": {
+    "planning": {
+      "provider": "opencode",
+      "model": "opencode-go/kimi-k2.5",
+      "temperature": 0.4,
+      "max_tokens": 8192,
+      "role": "Architecture planning, code review, task breakdown"
+    },
+    "implementation": {
+      "provider": "opencode",
+      "model": "qwen/qwen3.6-plus",
+      "temperature": 0.2,
+      "max_tokens": 8192,
+      "role": "Code generation, bug fixes, refactoring"
+    }
+  },
+  "workflow": {
+    "steps": [
+      "fetch_tasks",
+      "plan_with_kimi",
+      "implement_with_qwen",
+      "create_branch",
+      "commit_changes",
+      "post_summary"
+    ]
+  },
+  "git": {
+    "default_branch": "main",
+    "feature_prefix": "buildorder/",
+    "auto_push": false,
+    "require_tests": true
+  },
+  "sources": {
+    "task_sources": ["state/phase2-tasks.json", "memory/*.md", "github_issues"],
+    "workspace_root": "~/workspace"
+  },
+  "schedule": {
+    "cron": "0 */6 * * *",
+    "timezone": "Asia/Singapore"
+  },
+  "output": {
+    "discord_webhook": "${DISCORD_WEBHOOK_BUILD}",
+    "format": "markdown"
+  }
+}
