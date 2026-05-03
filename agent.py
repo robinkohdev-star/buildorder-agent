@@ -12,6 +12,10 @@ import asyncio
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 import aiohttp
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 class BuildOrder:
     def __init__(self, config_path: str = "config.json"):
