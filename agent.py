@@ -27,13 +27,67 @@ class BuildOrder:
         
     async def call_opencode(self, model: str, prompt: str, temperature: float = 0.4, max_tokens: int = 4096) -> str:
         """Call OpenCode API with specified model"""
-        # OpenCode API not available - return placeholder
-        print(f"OpenCode API call skipped (model: {model})")
-        return "AI planning/implementation disabled. OpenCode API not available."
+        api_key = os.getenv("OPENCODE_API") or os.getenv("OPENCODE_API_KEY")
+        
+        if not api_key:
+            print("Warning: No OPENCODE_API key found in environment")
+            return "AI analysis unavailable - no API key configured"
+        
+        # Try OpenCode API endpoint
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    "https://api.opencode.ai/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": model,
+                        "messages": [
+                            {"role": "system", "content": "You are a senior software engineer."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        "temperature": temperature,
+                        "max_tokens": max_tokens
+                    },
+                    timeout=aiohttp.ClientTimeout(total=60)
+                ) as resp:
+                    if resp.status != 200:
+                        text = await resp.text()
+                        print(f"OpenCode API error: {resp.status} - {text[:200]}")
+                        return f"API error (status {resp.status}). Analysis unavailable."
+                    
+                    content_type = resp.headers.get('Content-Type', '')
+                    if 'application/json' not in content_type:
+                        text = await resp.text()
+                        print(f"Unexpected content type: {content_type}")
+                        return "API returned non-JSON response. Analysis unavailable."
+                    
+                    result = await resp.json()
+                    return result['choices'][0]['message']['content']
+                    
+        except aiohttp.ClientConnectorError as e:
+            print(f"Connection error: {e}")
+            return "Cannot connect to OpenCode API. Check your network connection."
+        except Exception as e:
+            print(f"Error calling OpenCode API: {e}")
+            return f"API call failed: {str(e)[:100]}. Analysis unavailable."
     
     def fetch_pending_tasks(self) -> List[Dict[str, Any]]:
         """Fetch tasks from various sources"""
         tasks = []
+        
+        # Check for test task file
+        if os.path.exists("test-task.json"):
+            try:
+                with open("test-task.json", 'r') as f:
+                    data = json.load(f)
+                    tasks.extend(data.get("tasks", []))
+                    print(f"Loaded {len(data.get('tasks', []))} test task(s)")
+            except Exception as e:
+                print(f"Error loading test tasks: {e}")
+        
         # TODO: Read from state/phase2-tasks.json, parse memory files
         return tasks
     
