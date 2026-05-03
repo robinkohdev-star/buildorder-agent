@@ -26,23 +26,21 @@ class BuildOrder:
         self.discord_webhook = os.getenv("DISCORD_WEBHOOK_BUILD") or self.config['output']['discord_webhook']
         
     async def call_opencode(self, model: str, prompt: str, temperature: float = 0.4, max_tokens: int = 4096) -> str:
-        """Call OpenRouter API (OpenCode key works with OpenRouter)"""
-        api_key = os.getenv("OPENCODE_API") or os.getenv("OPENCODE_API_KEY")
+        """Call OpenAI API (OpenCode CLI uses OpenAI)"""
+        api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPENCODE_API")
         
         if not api_key:
-            print("Warning: No OPENCODE_API key found in environment")
+            print("Warning: No OPENAI_API_KEY found in environment")
             return "AI analysis unavailable - no API key configured"
         
-        # OpenRouter API endpoint (OpenCode keys work here)
+        # OpenAI API endpoint
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    "https://openrouter.ai/api/v1/chat/completions",
+                    "https://api.openai.com/v1/chat/completions",
                     headers={
                         "Authorization": f"Bearer {api_key}",
-                        "Content-Type": "application/json",
-                        "HTTP-Referer": "https://otter-mission-control.local",
-                        "X-Title": "BuildOrder Agent"
+                        "Content-Type": "application/json"
                     },
                     json={
                         "model": model,
@@ -57,7 +55,7 @@ class BuildOrder:
                 ) as resp:
                     if resp.status != 200:
                         text = await resp.text()
-                        print(f"OpenRouter API error: {resp.status} - {text[:200]}")
+                        print(f"OpenAI API error: {resp.status} - {text[:200]}")
                         return f"API error (status {resp.status}). Analysis unavailable."
                     
                     result = await resp.json()
@@ -69,9 +67,9 @@ class BuildOrder:
                     
         except aiohttp.ClientConnectorError as e:
             print(f"Connection error: {e}")
-            return "Cannot connect to OpenRouter API. Check your network connection."
+            return "Cannot connect to OpenAI API. Check your network connection."
         except Exception as e:
-            print(f"Error calling OpenRouter API: {e}")
+            print(f"Error calling OpenAI API: {e}")
             return f"API call failed: {str(e)[:100]}. Analysis unavailable."
     
     def fetch_pending_tasks(self) -> List[Dict[str, Any]]:
