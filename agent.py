@@ -27,22 +27,9 @@ class BuildOrder:
         
     async def call_opencode(self, model: str, prompt: str, temperature: float = 0.4, max_tokens: int = 4096) -> str:
         """Call OpenCode API with specified model"""
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                "https://api.opencode.ai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {self.opencode_api_key}"},
-                json={
-                    "model": model,
-                    "messages": [
-                        {"role": "system", "content": "You are a senior software engineer."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    "temperature": temperature,
-                    "max_tokens": max_tokens
-                }
-            ) as resp:
-                result = await resp.json()
-                return result['choices'][0]['message']['content']
+        # OpenCode API not available - return placeholder
+        print(f"OpenCode API call skipped (model: {model})")
+        return "AI planning/implementation disabled. OpenCode API not available."
     
     def fetch_pending_tasks(self) -> List[Dict[str, Any]]:
         """Fetch tasks from various sources"""
@@ -124,6 +111,28 @@ Provide files as: FILENAME:\n```LANGUAGE\ncode\n```"""
         # TODO: Parse code blocks and write to appropriate files
         return []
     
+    async def post_heartbeat(self):
+        """Post heartbeat to Discord when no tasks"""
+        if not self.discord_webhook:
+            print("No Discord webhook configured")
+            return
+        
+        heartbeat = f"""✅ **BuildOrder Heartbeat**
+
+**Time:** {datetime.now().strftime('%Y-%m-%d %H:%M')} SGT
+**Status:** No pending tasks
+**Mode:** AI planning/implementation disabled
+
+BuildOrder is running and ready to process tasks when they become available.
+"""
+        
+        async with aiohttp.ClientSession() as session:
+            await session.post(
+                self.discord_webhook,
+                json={"content": heartbeat[:2000]}
+            )
+        print("Heartbeat posted to Discord")
+    
     async def post_summary(self, implementation: Dict[str, Any], files: List[str]):
         """Post implementation summary to Discord"""
         if not self.discord_webhook:
@@ -160,6 +169,9 @@ Implementation complete and ready for review.
         
         if not tasks:
             print("No pending tasks found")
+            # Post heartbeat to Discord
+            await self.post_heartbeat()
+            print(f"[{datetime.now()}] BuildOrder complete - no tasks")
             return
         
         for task in tasks:
