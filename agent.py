@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
 BuildOrder Agent - Coding Agent
-Planning: Kimi k2.5 via OpenCode
-Implementation: Qwen 3.6 Plus via OpenCode
+Task tracking and git workflow automation (no external AI APIs)
 """
 
 import os
@@ -25,52 +24,58 @@ class BuildOrder:
         self.opencode_api_key = os.getenv("OPENCODE_API_KEY")
         self.discord_webhook = os.getenv("DISCORD_WEBHOOK_BUILD") or self.config['output']['discord_webhook']
         
-    async def call_opencode(self, model: str, prompt: str, temperature: float = 0.4, max_tokens: int = 4096) -> str:
-        """Call OpenAI API (OpenCode CLI uses OpenAI)"""
-        api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPENCODE_API")
+    def generate_plan_template(self, task: Dict[str, Any]) -> str:
+        """Generate a simple plan template without AI"""
+        title = task.get('title', 'Untitled')
+        description = task.get('description', 'No description')
         
-        if not api_key:
-            print("Warning: No OPENAI_API_KEY found in environment")
-            return "AI analysis unavailable - no API key configured"
+        return f"""# Implementation Plan: {title}
+
+## Overview
+{description}
+
+## Approach
+1. Analyze requirements
+2. Design solution structure
+3. Implement core functionality
+4. Add error handling
+5. Write tests
+6. Review and refine
+
+## Key Considerations
+- Follow existing code patterns
+- Add proper documentation
+- Include type hints
+- Handle edge cases
+- Write unit tests
+
+## Files to Create/Modify
+- TBD based on task analysis
+
+**Note:** This is a template plan. Manual review and refinement needed.
+"""
+    
+    def generate_code_template(self, task: Dict[str, Any]) -> str:
+        """Generate a simple code template without AI"""
+        title = task.get('title', 'Untitled')
         
-        # OpenAI API endpoint
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    "https://api.openai.com/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {api_key}",
-                        "Content-Type": "application/json"
-                    },
-                    json={
-                        "model": model,
-                        "messages": [
-                            {"role": "system", "content": "You are a senior software engineer."},
-                            {"role": "user", "content": prompt}
-                        ],
-                        "temperature": temperature,
-                        "max_tokens": max_tokens
-                    },
-                    timeout=aiohttp.ClientTimeout(total=60)
-                ) as resp:
-                    if resp.status != 200:
-                        text = await resp.text()
-                        print(f"OpenAI API error: {resp.status} - {text[:200]}")
-                        return f"API error (status {resp.status}). Analysis unavailable."
-                    
-                    result = await resp.json()
-                    if 'choices' in result and len(result['choices']) > 0:
-                        return result['choices'][0]['message']['content']
-                    else:
-                        print(f"Unexpected response format: {result}")
-                        return "API returned unexpected format. Analysis unavailable."
-                    
-        except aiohttp.ClientConnectorError as e:
-            print(f"Connection error: {e}")
-            return "Cannot connect to OpenAI API. Check your network connection."
-        except Exception as e:
-            print(f"Error calling OpenAI API: {e}")
-            return f"API call failed: {str(e)[:100]}. Analysis unavailable."
+        return f"""# {title}
+
+## Implementation Notes
+- Review requirements carefully
+- Follow project coding standards
+- Add comprehensive error handling
+- Include docstrings and type hints
+- Write unit tests
+
+## Next Steps
+1. Review this template
+2. Implement actual functionality
+3. Test thoroughly
+4. Submit for review
+
+**Note:** This is a placeholder. Actual implementation requires developer input.
+"""
     
     def fetch_pending_tasks(self) -> List[Dict[str, Any]]:
         """Fetch tasks from various sources"""
@@ -89,62 +94,25 @@ class BuildOrder:
         # TODO: Read from state/phase2-tasks.json, parse memory files
         return tasks
     
-    async def plan_with_kimi(self, task: Dict[str, Any]) -> Dict[str, Any]:
-        """Use Kimi k2.5 for architecture planning"""
-        prompt = f"""Create a detailed implementation plan for this task:
-
-Title: {task.get('title', '')}
-Description: {task.get('description', '')}
-
-Provide:
-1. Architecture overview
-2. File structure
-3. Key functions/classes
-4. Dependencies needed
-5. Testing approach
-6. Potential risks
-
-Format as structured JSON."""
-        
-        model = self.config['models']['planning']['model']
-        temp = self.config['models']['planning']['temperature']
-        max_tokens = self.config['models']['planning']['max_tokens']
-        
-        plan_text = await self.call_opencode(model, prompt, temp, max_tokens)
+    def plan_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate plan for a task (no AI)"""
+        plan_text = self.generate_plan_template(task)
         
         return {
             'task': task,
             'plan': plan_text,
-            'model_used': 'kimi-k2.5',
+            'model_used': 'template',
             'timestamp': datetime.now().isoformat()
         }
     
-    async def implement_with_qwen(self, plan: Dict[str, Any]) -> Dict[str, Any]:
-        """Use Qwen 3.6 Plus for code generation"""
-        prompt = f"""Implement this plan in code:
-
-Task: {plan['task'].get('title')}
-Plan:
-{plan['plan']}
-
-Generate complete, production-ready code with:
-- Clear comments
-- Error handling
-- Type hints where appropriate
-- Docstrings for functions
-
-Provide files as: FILENAME:\n```LANGUAGE\ncode\n```"""
-        
-        model = self.config['models']['implementation']['model']
-        temp = self.config['models']['implementation']['temperature']
-        max_tokens = self.config['models']['implementation']['max_tokens']
-        
-        code = await self.call_opencode(model, prompt, temp, max_tokens)
+    def implement_task(self, plan: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate implementation template (no AI)"""
+        code = self.generate_code_template(plan['task'])
         
         return {
             'plan': plan,
             'code': code,
-            'model_used': 'qwen-3.6-plus',
+            'model_used': 'template',
             'timestamp': datetime.now().isoformat()
         }
     
@@ -173,7 +141,7 @@ Provide files as: FILENAME:\n```LANGUAGE\ncode\n```"""
 
 **Time:** {datetime.now().strftime('%Y-%m-%d %H:%M')} SGT
 **Status:** No pending tasks
-**Mode:** AI planning/implementation disabled
+**Mode:** Standalone (no external AI APIs)
 
 BuildOrder is running and ready to process tasks when they become available.
 """
@@ -193,11 +161,11 @@ BuildOrder is running and ready to process tasks when they become available.
         
         task = implementation['plan']['task']
         
-        summary = f"""🛠️ **BuildOrder Complete**
+        summary = f"""🛠️ **BuildOrder Task Processed**
 
 **Task:** {task.get('title')}
 **Branch:** {self.config['git']['feature_prefix']}{task.get('id', 'unknown')}
-**Models:** Kimi k2.5 (plan) → Qwen 3.6 Plus (implement)
+**Mode:** Template-based planning (no external AI)
 
 **Files Modified:**
 {chr(10).join([f'- {f}' for f in files])}
@@ -229,13 +197,13 @@ Implementation complete and ready for review.
         for task in tasks:
             print(f"Processing: {task.get('title')}")
             
-            # Step 1: Plan with Kimi k2.5
-            print("  Planning with Kimi k2.5...")
-            plan = await self.plan_with_kimi(task)
+            # Step 1: Generate plan (template-based)
+            print("  Generating plan...")
+            plan = self.plan_task(task)
             
-            # Step 2: Implement with Qwen 3.6 Plus
-            print("  Implementing with Qwen 3.6 Plus...")
-            implementation = await self.implement_with_qwen(plan)
+            # Step 2: Generate implementation template
+            print("  Generating implementation template...")
+            implementation = self.implement_task(plan)
             
             # Step 3: Create branch
             branch = self.create_branch(task.get('id', 'unknown'))

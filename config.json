@@ -7,18 +7,12 @@
   },
   "models": {
     "planning": {
-      "provider": "openai",
-      "model": "gpt-4o",
-      "temperature": 0.4,
-      "max_tokens": 4096,
-      "role": "Architecture planning, code review, task breakdown"
+      "provider": "template",
+      "role": "Template-based architecture planning"
     },
     "implementation": {
-      "provider": "openai",
-      "model": "gpt-4o-mini",
-      "temperature": 0.2,
-      "max_tokens": 4096,
-      "role": "Code generation, bug fixes, refactoring"
+      "provider": "template",
+      "role": "Template-based code structure"
     }
   },
   "workflow": {
