@@ -78,10 +78,24 @@ class BuildOrder:
 """
     
     def fetch_pending_tasks(self) -> List[Dict[str, Any]]:
-        """Fetch tasks from various sources"""
+        """Fetch tasks from Otter Mission Control"""
         tasks = []
         
-        # Check for test task file
+        # Read from Otter Mission Control state
+        mission_control_tasks = "/home/rk/.openclaw/workspace/main_workspace/state/phase2-tasks.json"
+        if os.path.exists(mission_control_tasks):
+            try:
+                with open(mission_control_tasks, 'r') as f:
+                    data = json.load(f)
+                    # Filter for in-progress tasks
+                    for task in data:
+                        if task.get('status') == 'in-progress':
+                            tasks.append(task)
+                    print(f"Loaded {len(tasks)} in-progress task(s) from Mission Control")
+            except Exception as e:
+                print(f"Error loading Mission Control tasks: {e}")
+        
+        # Check for test task file (fallback)
         if os.path.exists("test-task.json"):
             try:
                 with open("test-task.json", 'r') as f:
@@ -91,7 +105,6 @@ class BuildOrder:
             except Exception as e:
                 print(f"Error loading test tasks: {e}")
         
-        # TODO: Read from state/phase2-tasks.json, parse memory files
         return tasks
     
     def plan_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
