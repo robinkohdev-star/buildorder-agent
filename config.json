@@ -3,23 +3,25 @@
     "name": "BuildOrder",
     "id": "buildorder",
     "role": "Coding agent",
-    "mission": "Plans with Kimi k2.5, implements with Qwen 3.6 Plus on fresh branches, posts summaries to Discord"
+    "mission": "Plans with Kimi k2.5, implements with OpenCode models on fresh branches, posts summaries to Discord"
   },
   "models": {
     "planning": {
-      "provider": "template",
-      "role": "Template-based architecture planning"
+      "provider": "opencode",
+      "model": "kimi-k2.5",
+      "temperature": 0.3
     },
     "implementation": {
-      "provider": "template",
-      "role": "Template-based code structure"
+      "provider": "opencode",
+      "model": "kimi-k2.5",
+      "temperature": 0.2
     }
   },
   "workflow": {
     "steps": [
       "fetch_tasks",
-      "plan_with_kimi",
-      "implement_with_qwen",
+      "plan_with_opencode",
+      "implement_with_opencode",
       "create_branch",
       "commit_changes",
       "post_summary"

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 BuildOrder Agent - Coding Agent with Opencode API
-Uses Opencode MiniMax 2.5 for AI code generation
+Uses Opencode kimi-k2.5 for AI code generation
 """
 
 import os
@@ -18,9 +18,9 @@ from dotenv import load_dotenv
 agent_dir = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(agent_dir, '.env'))
 
-# Sandboxed Ollama settings
-OLLAMA_HOST = os.getenv("OLLAMA_HOST", "127.0.0.1:11435")
-OLLAMA_URL = f"http://{OLLAMA_HOST}/api/generate"
+# OpenCode API settings
+OPENCODE_API_KEY = os.getenv("OPENCODE_API", "")
+OPENCODE_API_URL = "https://api.opencode.ai/v1/chat/completions"
 WORKSPACE_ROOT = "/home/rk/.openclaw/workspace/main_workspace"
 
 class BuildOrder:
@@ -39,48 +39,59 @@ class BuildOrder:
         
         # Also check explicit env var as override
         self.discord_webhook = os.getenv("DISCORD_WEBHOOK_BUILD", self.discord_webhook)
-        self.model = "qwen2.5-coder:1.5b"  # Fast 1.5B model for CPU
         
-    async def call_ollama(self, prompt: str, system: str = "") -> str:
-        """Call local Ollama for AI generation"""
+        # Get model from config
+        self.model = self.config['models']['implementation']['model']
+        self.planning_model = self.config['models']['planning']['model']
+        
+    async def call_opencode(self, prompt: str, system: str = "", model: str = None) -> str:
+        """Call OpenCode API for AI generation"""
+        if not OPENCODE_API_KEY:
+            print("Error: OPENCODE_API not set in .env")
+            return None
+        
+        use_model = model or self.model
+        
         payload = {
-            "model": self.model,
-            "prompt": prompt,
-            "system": system,
-            "stream": False,
-            "options": {
-                "temperature": 0.3,
-                "num_predict": 1500
-            }
+            "model": use_model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.3,
+            "max_tokens": 4000
         }
         
-        import json as json_mod
-        payload_json = json_mod.dumps(payload)
+        headers = {
+            "Authorization": f"Bearer {OPENCODE_API_KEY}",
+            "Content-Type": "application/json"
+        }
         
         try:
-            cmd = ['curl', '-s', '-X', 'POST', OLLAMA_URL,
-                   '-H', 'Content-Type: application/json',
-                   '-d', payload_json]
-            
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-            
-            if result.returncode != 0:
-                print(f"Ollama curl error: {result.stderr[:200]}")
-                return None
-            
-            try:
-                data = json_mod.loads(result.stdout)
-                return data.get('response', '')
-            except json_mod.JSONDecodeError as e:
-                print(f"Ollama JSON decode error: {e}")
-                print(f"Response: {result.stdout[:200]}")
-                return None
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    OPENCODE_API_URL,
+                    headers=headers,
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=300)
+                ) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        print(f"OpenCode API error {response.status}: {error_text[:200]}")
+                        return None
+                    
+                    data = await response.json()
+                    return data.get('choices', [{}])[0].get('message', {}).get('content', '')
+                    
+        except asyncio.TimeoutError:
+            print("OpenCode API timeout")
+            return None
         except Exception as e:
-            print(f"Ollama error: {e}")
+            print(f"OpenCode API error: {e}")
             return None
     
     async def generate_plan(self, task: Dict[str, Any]) -> str:
-        """Generate implementation plan using Ollama"""
+        """Generate implementation plan using OpenCode"""
         title = task.get('title', 'Untitled')
         description = task.get('description', task.get('details', 'No description'))
         
@@ -100,7 +111,7 @@ Provide:
 
 Format as markdown with clear file paths."""
 
-        plan = await self.call_ollama(user_prompt, system_prompt)
+        plan = await self.call_opencode(user_prompt, system_prompt, self.planning_model)
         return plan or self._plan_template(title, description)
     
     def _plan_template(self, title: str, description: str) -> str:
@@ -122,7 +133,7 @@ Format as markdown with clear file paths."""
 """
     
     async def generate_code(self, task: Dict[str, Any], plan: str) -> Dict[str, str]:
-        """Generate actual code files using Ollama"""
+        """Generate actual code files using OpenCode"""
         title = task.get('title', 'Untitled')
         
         system_prompt = "You are an expert software engineer. Write complete, working code."
@@ -143,7 +154,7 @@ complete file content here
 
 Provide complete, runnable code with proper imports and error handling."""
 
-        response = await self.call_ollama(user_prompt, system_prompt)
+        response = await self.call_opencode(user_prompt, system_prompt)
         
         if not response:
             return {}
@@ -313,7 +324,7 @@ Ready for review and testing.
 
 **Time:** {datetime.now().strftime('%Y-%m-%d %H:%M')} SGT
 **Status:** No pending tasks
-**Model:** {self.model} (local Ollama)
+**Model:** {self.model} (OpenCode API)
 
 BuildOrder is running and ready to process tasks.
 """
@@ -328,7 +339,7 @@ BuildOrder is running and ready to process tasks.
         """Main agent loop"""
         print(f"[{datetime.now()}] BuildOrder starting...")
         print(f"Workspace: {WORKSPACE_ROOT}")
-        print(f"Ollama: {OLLAMA_HOST}")
+        print(f"API: OpenCode")
         print(f"Model: {self.model}")
         
         tasks = self.fetch_pending_tasks()
@@ -344,12 +355,12 @@ BuildOrder is running and ready to process tasks.
             task_id = task.get('id', 'unknown')
             print(f"\nProcessing: {title}")
             
-            # Step 1: Generate plan with Ollama
-            print("  Generating plan with Ollama...")
+            # Step 1: Generate plan with OpenCode
+            print("  Generating plan with OpenCode...")
             plan = await self.generate_plan(task)
             
-            # Step 2: Generate code with Ollama
-            print("  Generating code with Ollama...")
+            # Step 2: Generate code with OpenCode
+            print("  Generating code with OpenCode...")
             files_content = await self.generate_code(task, plan)
             
             # Step 3: Create branch
